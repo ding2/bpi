@@ -309,7 +309,7 @@ function bpi_form_node_form_alter(&$form, &$form_state, $form_id) {
     $push_permission = user_access('bpi push content');
     if ($push_permission) {
       $form['actions']['push'] = $form['actions']['submit'];
-      $form['actions']['push']['#value'] = t('Save and push');
+      $form['actions']['push']['#value'] = t('Save and push to BPI');
       $form['actions']['push']['#submit'][] = 'bpi_push_directly_callback_action';
     }
   }
