@@ -42,6 +42,25 @@ function bpi_syndicate_page_form($form, &$form_state) {
       '#value' => t('Search'),
     );
 
+    $form['bpi_search_reset'] = array(
+      '#type' => 'item',
+      '#markup' => l(t('Reset search'), current_path(), array(
+        'query' => NULL,
+      )),
+    );
+
+    $form['bpi_search_amount'] = array(
+      '#type' => 'select',
+      '#title' => t('Page size'),
+      '#options' => array(
+        10 => 10,
+        20 => 20,
+        50 => 50,
+        100 => 100,
+      ),
+      '#default_value' => _bpi_get_query_parameter('amount', 10),
+    );
+
     // Must be called before building facets ui.
     $items = bpi_search_get_items();
 
@@ -55,32 +74,41 @@ function bpi_syndicate_page_form($form, &$form_state) {
       )),
     );
 
-    pager_default_initialize(
-      isset($items[0]['total_count']) ? $items[0]['total_count'] : 0,
-      variable_get('bpi_content_per_page', BPI_CONTENT_PER_PAGE)
-    );
-
-    $pager = theme('pager');
+    $total_items = isset($items[0]['total_count']) ? $items[0]['total_count'] : 0;
+    $page_size = _bpi_get_query_parameter('amount', 10);
+    pager_default_initialize($total_items, $page_size);
 
     $form['bpi_search_pager'] = array(
       '#type' => 'item',
-      '#markup' => $pager,
+      '#markup' => theme('pager'),
     );
+
+    if ($items) {
+      $current_page = pager_find_page();
+      $items_from = $current_page * $page_size + 1;
+      $items_to = min(($current_page + 1) * $page_size, $total_items);
+
+      $form['bpi_search_info'] = array(
+        '#type' => 'item',
+        '#markup' => '<p>' . ($items_from < $items_to
+                              ? t('Showing items @from–@to of @total', array(
+                                '@from' => $items_from,
+                                '@to' => $items_to,
+                                '@total' => $total_items,
+                              ))
+                              : t('Showing item @from of @total', array(
+                                '@from' => $items_from,
+                                '@total' => $total_items,
+                              )))
+        . '</p>',
+      );
+    }
 
     $form['#attached']['css'][] = drupal_get_path('module', 'bpi') . '/css/bpi-admin.styles.css';
     $form['#submit'][] = 'bpi_syndicate_page_form_submit';
   }
 
   return $form;
-}
-
-/**
- * Syndication page form validator.
- */
-function bpi_syndicate_page_form_validate($form, &$form_state) {
-  if (empty($form_state['values']['bpi_search_query'])) {
-    form_set_error('bpi_search_query', t('Enter some keywords.'));
-  }
 }
 
 /**
@@ -144,7 +172,7 @@ function bpi_syndicate_page_form_submit(array $form, array &$form_state) {
 function bpi_search_content($query = '', $page = 1, $filters = array(), $sort = array()) {
   try {
     $bpi = bpi_client_instance();
-    $amount = variable_get('bpi_content_per_page', BPI_CONTENT_PER_PAGE);
+    $amount = max(intval(_bpi_get_query_parameter('amount', 10)), 10);
     $offset = $page * $amount;
 
     $bpi_data = $bpi->searchNodes(
@@ -187,12 +215,18 @@ function bpi_search_content($query = '', $page = 1, $filters = array(), $sort = 
  *   - assets: array of links representing the images content
  */
 function bpi_search_get_items() {
+  if ($_SERVER['REQUEST_METHOD'] != 'GET') {
+    return NULL;
+  }
+
   $page = pager_find_page();
   $phrase = _bpi_get_current_search_phrase();
   $filters = _bpi_get_query_parameter('filter', array());
   $sort = _bpi_get_current_sorting();
 
   $response = bpi_search_content($phrase, $page, $filters, $sort);
+  bpi_set_search_facets($response ? $response->getFacets() : NULL);
+
   $bpi_nodes = array();
 
   // Get agency_id=>agency cache.
@@ -475,7 +509,7 @@ function _bpi_get_query_parameter($path = NULL, $default_value = NULL) {
  *   Searched string.
  */
 function _bpi_get_current_search_phrase() {
-  return isset($_GET[BPI_SEARCH_PHRASE_KEY]) ? check_plain($_GET[BPI_SEARCH_PHRASE_KEY]) : '';
+  return _bpi_get_query_parameter(BPI_SEARCH_PHRASE_KEY);
 }
 
 /**
@@ -534,7 +568,6 @@ function bpi_syndicate_action($bpi_id) {
     drupal_goto('admin/bpi');
   }
 }
-
 
 /**
  * Build facets form fields.
