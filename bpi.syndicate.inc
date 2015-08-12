@@ -32,22 +32,36 @@ function bpi_syndicate_page_form($form, &$form_state) {
   if (bpi_service_is_configured()) {
     drupal_add_library('system', 'drupal.ajax');
 
-    $form['bpi_search_query'] = array(
+    $form['bpi_search'] = array(
+      '#type' => 'container',
+      '#attributes' => array(
+        'class' => array(
+          drupal_html_class('container-inline'),
+        ),
+      ),
+    );
+
+    $form['bpi_search']['bpi_search_query'] = array(
       '#type' => 'textfield',
       '#default_value' => _bpi_get_current_search_phrase(),
     );
 
-    $form['bpi_search_submit'] = array(
+    $form['bpi_search']['bpi_search_submit'] = array(
       '#type' => 'submit',
       '#value' => t('Search'),
     );
 
-    $form['bpi_search_reset'] = array(
-      '#type' => 'item',
-      '#markup' => l(t('Reset search'), current_path(), array(
-        'query' => NULL,
-      )),
-    );
+    if (_bpi_get_current_filter() || _bpi_get_current_search_phrase()) {
+      $form['bpi_search']['bpi_search_reset'] = array(
+        '#type' => 'item',
+        '#markup' => l(t('Reset search'), current_path(), array(
+          'query' => NULL,
+          'attributes' => array(
+            'class' => array('button'),
+          ),
+        )),
+      );
+    }
 
     $form['bpi_search_amount'] = array(
       '#type' => 'select',
@@ -221,7 +235,7 @@ function bpi_search_get_items() {
 
   $page = pager_find_page();
   $phrase = _bpi_get_current_search_phrase();
-  $filters = _bpi_get_query_parameter('filter', array());
+  $filters = _bpi_get_current_filter();
   $sort = _bpi_get_current_sorting();
 
   $response = bpi_search_content($phrase, $page, $filters, $sort);
@@ -428,6 +442,18 @@ function _bpi_get_current_sorting($field = NULL) {
 }
 
 /**
+ * Get current filter.
+ *
+ * @return array
+ *   The filter.
+ */
+function _bpi_get_current_filter() {
+  $value = _bpi_get_query_parameter('filter', array());
+  // @FIXME: Make sure that only valid filter parameters are present.
+  return $value;
+}
+
+/**
  * Get query for applying a filter.
  *
  * @param string $field
@@ -584,7 +610,7 @@ function bpi_build_search_facets(array &$form) {
       '#type' => 'fieldset',
       '#title' => t('Filters'),
       '#collapsible' => TRUE,
-      '#collapsed' => !_bpi_get_query_parameter('filter'),
+      '#collapsed' => !_bpi_get_current_filter(),
       '#attributes' => array(
         'class' => array(
           'bpi-filters',
@@ -662,10 +688,10 @@ function bpi_build_search_facets(array &$form) {
       '#type' => 'select',
       '#title' => bpi_label_mapper($name) ? bpi_label_mapper($name) : $name,
       '#options' => array(
-        '' => t('All must apply'),
-        'or' => t('Any must apply'),
+        'and' => t('All must apply'),
+        '' => t('Any must apply'),
       ),
-      '#default_value' => _bpi_get_query_parameter(array('filter', $name)),
+      '#default_value' => _bpi_get_query_parameter(array('filter', $name), 'and'),
       '#weight' => -10,
     );
 
