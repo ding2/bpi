@@ -722,7 +722,7 @@ function bpi_get_facets() {
 
   if ($reload) {
     $response = bpi_search_content();
-    if (!$response) {
+    if ($response) {
       $facets = $response->getFacets();
       $_SESSION['bpi_all_facets'] = bpi_facets_to_array($facets);
     }
