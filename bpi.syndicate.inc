@@ -346,11 +346,11 @@ function bpi_preprocess_bpi_search_results(array &$variables) {
       'class' => array('bpi-title', _bpi_get_current_sorting('title') ? 'active' : ''),
     ),
     array(
-      'data' => bpi_get_sort_link(t('Date'), 'pushed'),
+      'data' => bpi_get_sort_link(t('Date'), 'pushed', 'desc'),
       'class' => array('bpi-pushed', _bpi_get_current_sorting('pushed') ? 'active' : ''),
     ),
     array(
-      'data' => bpi_get_sort_link(t('Syndications'), 'syndications'),
+      'data' => bpi_get_sort_link(t('Syndications'), 'syndications', 'desc'),
     ),
     array(
       'data' => t('Details'),
@@ -438,13 +438,20 @@ function bpi_preprocess_bpi_search_results(array &$variables) {
  *   The text on the link.
  * @param string $field
  *   The field to sort by.
+ * @param string $defaultDirection
+ *   The sorting direction to use if not currently sorting of this field.
  *
  * @return string
  *   The link for sorting.
  */
-function bpi_get_sort_link($text, $field) {
+function bpi_get_sort_link($text, $field, $defaultDirection = 'asc') {
   $current_sorting = _bpi_get_current_sorting($field);
-  $sort_direction = $current_sorting == 'asc' ? 'desc' : 'asc';
+  if ($current_sorting) {
+    $sort_direction = $current_sorting == 'asc' ? 'desc' : 'asc';
+  }
+  else {
+    $sort_direction = $defaultDirection;
+  }
   $query = _bpi_build_query(array(
     BPI_QUERY_SORT_NAME => array(
       $field => $sort_direction,
@@ -481,6 +488,10 @@ function _bpi_get_current_sorting($field = NULL) {
 function _bpi_get_current_filter() {
   $value = _bpi_get_query_parameter('filter', array());
   // @FIXME: Make sure that only valid filter parameters are present.
+  if (isset($value['agency_internal'])) {
+    $value['agencyInternal'] = $value['agency_internal'];
+    unset($value['agency_internal']);
+  }
   return $value;
 }
 
@@ -498,7 +509,7 @@ function _bpi_get_current_filter() {
 function _bpi_get_filter_query($field, $value, $clear = TRUE) {
   $query = array(
     'filter' => array(
-      $field => $value,
+      $field => array($value),
     ),
   );
   return _bpi_build_query($query, $clear ? array('filter') : FALSE);
@@ -759,7 +770,8 @@ function bpi_build_search_facets(array &$form) {
 /**
  * Get all facets or facets from last search as an array.
  *
- * For performance reasons the facets will only be loaded once per session.
+ * For performance reasons all facets will only be loaded when no search or
+ * filters are applied.
  *
  * @return array
  *   All facets or the facets from the last search.
