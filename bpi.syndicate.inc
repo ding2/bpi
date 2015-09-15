@@ -18,6 +18,16 @@ define('BPI_AGENCY_CACHE', 'bpi_agency_cache');
 define('BPI_QUERY_SORT_NAME', 'sorting');
 
 /**
+ * Default page size for paging.
+ */
+define('BPI_DEFAULT_PAGE_SIZE', 10);
+
+/**
+ * Key for storing data in session.
+ */
+define('BPI_ALL_FACETS_KEY', 'BPI_ALL_FACETS');
+
+/**
  * Define syndication page markup.
  *
  * This includes search form, filtering and found content.
@@ -68,7 +78,7 @@ function bpi_syndicate_page_form($form, &$form_state) {
       '#value' => t('Search'),
     );
 
-    if (_bpi_get_current_search_phrase()) {
+    if (!empty(_bpi_get_current_search_phrase())) {
       $query_form['bpi_search']['bpi_search_actions']['bpi_search_reset'] = array(
         '#type' => 'item',
         '#markup' => l(t('Reset search'), current_path(), array(
@@ -86,7 +96,7 @@ function bpi_syndicate_page_form($form, &$form_state) {
     bpi_build_search_facets($query_form);
 
     $total_items = isset($items[0]['total_count']) ? $items[0]['total_count'] : 0;
-    $page_size = _bpi_get_query_parameter('amount', 10);
+    $page_size = _bpi_get_query_parameter('amount', BPI_DEFAULT_PAGE_SIZE);
     pager_default_initialize($total_items, $page_size);
 
     $result_form = array(
@@ -98,7 +108,7 @@ function bpi_syndicate_page_form($form, &$form_state) {
       ),
     );
 
-    if ($items) {
+    if (!empty($items)) {
       $result_form['bpi_search_info'] = array(
         '#type' => 'container',
         '#attributes' => array(
@@ -127,13 +137,8 @@ function bpi_syndicate_page_form($form, &$form_state) {
       $result_form['bpi_search_info']['bpi_search_amount'] = array(
         '#type' => 'select',
         '#title' => t('Page size'),
-        '#options' => array(
-          10 => 10,
-          20 => 20,
-          50 => 50,
-          100 => 100,
-        ),
-        '#default_value' => _bpi_get_query_parameter('amount', 10),
+        '#options' => drupal_map_assoc(array(10, 20, 50, 100)),
+        '#default_value' => _bpi_get_query_parameter('amount', BPI_DEFAULT_PAGE_SIZE),
         '#attributes' => array(
           'onchange' => 'form.submit()',
         ),
@@ -190,7 +195,7 @@ function bpi_syndicate_page_form($form, &$form_state) {
 function bpi_syndicate_page_form_submit(array $form, array &$form_state) {
   $bpi_query = array();
   $sorting = _bpi_get_current_sorting();
-  if ($sorting) {
+  if (!empty($sorting)) {
     $bpi_query[BPI_QUERY_SORT_NAME] = $sorting;
   }
   $values = $form_state['values'];
@@ -199,16 +204,14 @@ function bpi_syndicate_page_form_submit(array $form, array &$form_state) {
     $bpi_query['amount'] = intval($values['bpi_search_amount']);
   }
 
-  if (isset($values['bpi_search_query']) && trim($values['bpi_search_query'])) {
+  if (isset($values['bpi_search_query']) && !empty(trim($values['bpi_search_query']))) {
     $bpi_query[BPI_SEARCH_PHRASE_KEY] = trim($values['bpi_search_query']);
   }
 
   if (isset($values['bpi_facets'])) {
     foreach ($values['bpi_facets'] as $key => $value) {
-      $selected_values = is_array($value) ? array_keys(array_filter($value, function($value) {
-        return $value;
-      })) : $value;
-      if ($selected_values) {
+      $selected_values = is_array($value) ? array_keys(array_filter($value)) : $value;
+      if (!empty($selected_values)) {
         if (!isset($bpi_query['filter'])) {
           $bpi_query['filter'] = array();
         }
@@ -239,7 +242,7 @@ function bpi_syndicate_page_form_submit(array $form, array &$form_state) {
 function bpi_search_content($query = '', $page = 1, $filters = array(), $sort = array()) {
   try {
     $bpi = bpi_client_instance();
-    $amount = max(intval(_bpi_get_query_parameter('amount', 10)), 10);
+    $amount = max(intval(_bpi_get_query_parameter('amount')), BPI_DEFAULT_PAGE_SIZE);
     $offset = $page * $amount;
 
     $bpi_data = $bpi->searchNodes(
@@ -267,7 +270,7 @@ function bpi_search_content($query = '', $page = 1, $filters = array(), $sort = 
 /**
  * Parses the BPI search result into more simpler structures.
  *
- * @return array
+ * @return array|null
  *   Array of bpi fetched items, in structure:
  *   - bpi_id: bpi identifier
  *   - title: item title
@@ -292,7 +295,6 @@ function bpi_search_get_items() {
   $sort = _bpi_get_current_sorting();
 
   $response = bpi_search_content($phrase, $page, $filters, $sort);
-  bpi_set_search_facets($response ? $response->getFacets() : NULL);
 
   $bpi_nodes = array();
 
@@ -468,7 +470,7 @@ function bpi_preprocess_bpi_search_results(array &$variables) {
  */
 function bpi_get_sort_link($text, $field, $default_direction = 'asc') {
   $current_sorting = _bpi_get_current_sorting($field);
-  if ($current_sorting) {
+  if (!empty($current_sorting)) {
     $sort_direction = $current_sorting == 'asc' ? 'desc' : 'asc';
   }
   else {
@@ -495,7 +497,7 @@ function bpi_get_sort_link($text, $field, $default_direction = 'asc') {
  */
 function _bpi_get_current_sorting($field = NULL) {
   $sorting = _bpi_get_query_parameter(BPI_QUERY_SORT_NAME);
-  if ($field) {
+  if (!empty($field)) {
     return isset($sorting[$field]) ? $sorting[$field] : NULL;
   }
   return $sorting;
@@ -511,10 +513,10 @@ function _bpi_get_current_search_query() {
   $text = _bpi_get_query_parameter('text', NULL);
   $amount = _bpi_get_query_parameter('amount');
   $query = array();
-  if ($text) {
+  if (!empty($text)) {
     $query['text'] = $text;
   }
-  if ($amount) {
+  if (!empty($amount)) {
     $query['amount'] = $amount;
   }
   return $query;
@@ -529,6 +531,8 @@ function _bpi_get_current_search_query() {
 function _bpi_get_current_filter() {
   $value = _bpi_get_query_parameter('filter', array());
   // @TODO: Make sure that only valid filter parameters are present.
+  // Rename key "agency_internal" to "agencyInternal" to match webservice
+  // parameter.
   if (isset($value['agency_internal'])) {
     $value['agencyInternal'] = $value['agency_internal'];
     unset($value['agency_internal']);
@@ -605,10 +609,10 @@ function _bpi_build_query(array $query, $clear = FALSE) {
  */
 function _bpi_get_query_parameter($path = NULL, $default_value = NULL) {
   $data = drupal_get_query_parameters();
-  if ($path && !is_array($path)) {
+  if (!empty($path) && !is_array($path)) {
     $path = array($path);
   }
-  if ($path) {
+  if (!empty($path)) {
     foreach ($path as $step) {
       if (!isset($data[$step])) {
         return $default_value;
@@ -624,7 +628,7 @@ function _bpi_get_query_parameter($path = NULL, $default_value = NULL) {
  *
  * @see bpi_syndicate_page_form()
  *
- * @return string
+ * @return string|null
  *   Searched string.
  */
 function _bpi_get_current_search_phrase() {
@@ -698,7 +702,7 @@ function bpi_syndicate_action($bpi_id) {
 function bpi_build_search_facets(array &$form) {
   $facets = bpi_get_facets();
 
-  if ($facets) {
+  if (!empty($facets)) {
     $filter_form = array(
       '#type' => 'fieldset',
       '#title' => t('Filters'),
@@ -721,11 +725,17 @@ function bpi_build_search_facets(array &$form) {
       ),
     );
 
-    $use_chosen = TRUE;
+    // Use chosen to render select controls?
+    $library = libraries_detect('chosen');
+    $use_chosen = !empty($library['installed']);
 
     if ($use_chosen) {
-      $form['#attached']['css'][] = drupal_get_path('module', 'bpi') . '/js/chosen/chosen.min.css';
-      $form['#attached']['js'][] = drupal_get_path('module', 'bpi') . '/js/chosen/chosen.jquery.min.js';
+      foreach ($library['files']['css'] as $file => $v) {
+        $form['#attached']['css'][] = $library['library path'] . '/' . $file;
+      }
+      foreach ($library['files']['js'] as $file => $v) {
+        $form['#attached']['js'][] = $library['library path'] . '/' . $file;
+      }
     }
 
     foreach ($facets as $name => $terms) {
@@ -738,21 +748,19 @@ function bpi_build_search_facets(array &$form) {
       }
       $default_value = _bpi_get_query_parameter(array('filter', $name), array());
 
-      switch ($name) {
-        case 'agency_internal':
-          $options = array(
-            '' => t('All'),
-          );
-          if (isset($terms[0])) {
-            $options['false'] = t('No');
-          }
-          if (isset($terms[1])) {
-            $options['true'] = t('Yes');
-          }
-          $default_value = _bpi_get_query_parameter(array('filter', $name));
-          $multiple = FALSE;
-          $type = 'select';
-          break;
+      if ($name == 'agency_internal') {
+        $options = array(
+          '' => t('All'),
+        );
+        if (isset($terms[0])) {
+          $options['false'] = t('No');
+        }
+        if (isset($terms[1])) {
+          $options['true'] = t('Yes');
+        }
+        $default_value = _bpi_get_query_parameter(array('filter', $name));
+        $multiple = FALSE;
+        $type = 'select';
       }
 
       $facets_form[$id] = array(
@@ -797,7 +805,7 @@ function bpi_build_search_facets(array &$form) {
       ),
     );
 
-    if (_bpi_get_current_filter()) {
+    if (!empty(_bpi_get_current_filter())) {
       $filter_form['bpi_actions']['reset_filter'] = array(
         '#type' => 'item',
         '#markup' => l(t('Reset filters'), current_path(), array(
@@ -819,12 +827,12 @@ function bpi_build_search_facets(array &$form) {
  * For performance reasons facets will only be loaded when no search or
  * filters are applied.
  *
- * @return array
+ * @return array|null
  *   All facets.
  */
 function bpi_get_facets() {
   // Reload facets if they're not cached locally.
-  $reload = !isset($_SESSION['bpi_all_facets']) || !is_array($_SESSION['bpi_all_facets']);
+  $reload = !isset($_SESSION[BPI_ALL_FACETS_KEY]) || !is_array($_SESSION[BPI_ALL_FACETS_KEY]);
   if (!$reload) {
     $query = _bpi_get_query_parameter();
     // Reload if neither text nor filter is applied.
@@ -833,40 +841,16 @@ function bpi_get_facets() {
 
   if ($reload) {
     $response = bpi_search_content();
-    if ($response) {
+    if (!empty($response)) {
       $facets = $response->getFacets();
-      $_SESSION['bpi_all_facets'] = bpi_facets_to_array($facets);
+      $_SESSION[BPI_ALL_FACETS_KEY] = bpi_facets_to_array($facets);
     }
     else {
-      $_SESSION['bpi_all_facets'] = NULL;
+      $_SESSION[BPI_ALL_FACETS_KEY] = NULL;
     }
   }
 
-  return $_SESSION['bpi_all_facets'];
-}
-
-/**
- * Set search facets.
- *
- * Used to store facets from actual search in the session as we need the
- * facets when rendering the form on postback.
- *
- * @param \Bpi\Sdk\Facets $facets
- *   The facets returned from the search.
- */
-function bpi_set_search_facets(\Bpi\Sdk\Facets $facets = NULL) {
-  // Convert facets to array for safe storage in session.
-  $_SESSION['bpi_search_facets'] = $facets ? bpi_facets_to_array($facets) : NULL;
-}
-
-/**
- * Get facets from last search.
- *
- * @return array $facets
- *   The facets.
- */
-function bpi_get_search_facets() {
-  return isset($_SESSION['bpi_search_facets']) ? $_SESSION['bpi_search_facets'] : NULL;
+  return $_SESSION[BPI_ALL_FACETS_KEY];
 }
 
 /**
@@ -883,22 +867,43 @@ function bpi_get_search_facets() {
  *   ]
  */
 function bpi_facets_to_array(\Bpi\Sdk\Facets $facets) {
-  $data = NULL;
-
-  if ($facets) {
-    $data = array();
-    foreach ($facets->getFacets() as $facet) {
-      $data[$facet->getFacetName()] = array();
-      foreach ($facet->getFacetTerms() as $name => $term) {
-        $data[$facet->getFacetName()][$name] = array(
-          'title' => $term->getTitle(),
-          'count' => $term->getAmount(),
-        );
-      }
+  $data = array();
+  foreach ($facets->getFacets() as $facet) {
+    $data[$facet->getFacetName()] = array();
+    foreach ($facet->getFacetTerms() as $name => $term) {
+      $data[$facet->getFacetName()][$name] = array(
+        'title' => $term->getTitle(),
+        'count' => $term->getAmount(),
+      );
     }
-
-    ksort($data);
   }
 
+  // Sort by keys for consistency. The webservice may not always return facets
+  // in the same order.
+  ksort($data);
+
   return $data;
+}
+
+/**
+ * Implements hook_libraries_info().
+ *
+ * For defining external libraries.
+ */
+function bpi_libraries_info() {
+  $libraries['chosen'] = array(
+    'name' => 'Chosen',
+    'vendor url' => 'https://github.com/harvesthq/chosen',
+    'download url' => 'https://github.com/harvesthq/chosen/releases',
+    'version arguments' => array(
+      'file' => 'chosen.jquery.min.js',
+      'pattern' => '@(?:Chosen v|Version\s+)([0-9a-zA-Z\.-]+)@',
+    ),
+    'files' => array(
+      'css' => array('chosen.min.css'),
+      'js' => array('chosen.jquery.min.js'),
+    ),
+  );
+
+  return $libraries;
 }
