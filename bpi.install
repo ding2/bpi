@@ -54,7 +54,7 @@ function bpi_schema() {
 }
 
 /**
- * Implement hook_install
+ * Implements hook_install().
  */
 function bpi_install() {
   // Disable view 'admin_views_node' (cf. bpi_update_7003).
